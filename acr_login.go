@@ -113,13 +113,13 @@ func receiveChallengeFromLoginServer(serverAddress string) (*authDirective, erro
 
 	// verify headers
 	if !strings.EqualFold("Bearer", authType) {
-		return nil, nil // fmt.Errorf("Www-Authenticate: expected realm: Bearer, actual: %s", authType)
+		return nil, fmt.Errorf("Www-Authenticate: expected realm: Bearer, actual: %s", authType)
 	}
 	if len((*authParams)["service"]) == 0 {
-		return nil, nil // fmt.Errorf("Www-Authenticate: missing header \"service\"")
+		return nil, fmt.Errorf("Www-Authenticate: missing header \"service\"")
 	}
 	if len((*authParams)["realm"]) == 0 {
-		return nil, nil //fmt.Errorf("Www-Authenticate: missing header \"realm\"")
+		return nil, fmt.Errorf("Www-Authenticate: missing header \"realm\"")
 	}
 
 	return &authDirective{
