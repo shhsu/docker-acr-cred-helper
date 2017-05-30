@@ -14,6 +14,7 @@ import (
 	"unicode"
 
 	"github.com/Azure/go-autorest/autorest/adal"
+	"github.com/Sirupsen/logrus"
 	jwt "github.com/dgrijalva/jwt-go"
 )
 
@@ -48,11 +49,15 @@ func getOAuthBaseURL() *url.URL {
 
 // GetUsernamePassword get the AAD based ACR login credentials
 func GetUsernamePassword(serverAddress string, identityToken string) (user string, cred string, err error) {
+	// logrus.IsTerminal() checks for stderr
+	if !logrus.IsTerminal() {
+		return "", "", fmt.Errorf("Error: Azure Loing Helper requires terminal output on stderr")
+	}
+
 	var challenge *authDirective
 	if challenge, err = receiveChallengeFromLoginServer(serverAddress); err != nil {
-		return "", "", err
-	} else if challenge == nil {
-		// Challenge revealed that AAD is not supported
+		// ignore all error when receiving the challenge
+		logrus.Warnf("[Azure Login Helper] server %s does not responded with a valid challenge, reverting to default login...\nerror: %s\n", serverAddress, err)
 		return "", "", nil
 	}
 
