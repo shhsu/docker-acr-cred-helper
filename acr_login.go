@@ -49,11 +49,6 @@ func getOAuthBaseURL() *url.URL {
 
 // GetUsernamePassword get the AAD based ACR login credentials
 func GetUsernamePassword(serverAddress string, identityToken string) (user string, cred string, err error) {
-	// logrus.IsTerminal() checks for stderr
-	if !logrus.IsTerminal() {
-		return "", "", fmt.Errorf("Error: Azure Loing Helper requires terminal output on stderr")
-	}
-
 	var challenge *authDirective
 	if challenge, err = receiveChallengeFromLoginServer(serverAddress); err != nil {
 		// ignore all error when receiving the challenge
@@ -63,19 +58,14 @@ func GetUsernamePassword(serverAddress string, identityToken string) (user strin
 
 	var refreshToken, tenantID string
 	if len(identityToken) == 0 {
-		tenantID, refreshToken, err = getAADTokensWithDeviceLogin()
-		if err != nil {
-			return "", "", err
-		}
-	} else {
-		tenantID, refreshToken, err = performTokenRefresh(identityToken)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Unable to refresh token, please re-login...")
-			getAADTokensWithDeviceLogin()
-			if err != nil {
-				return "", "", err
-			}
-		}
+		// Note that even if give -p and -u, docker login would still go to cred store (should be treated as bug on the cli side)
+		// we should return empty so docker login flow can continue
+		return "", "", nil
+	}
+
+	tenantID, refreshToken, err = performTokenRefresh(identityToken)
+	if err != nil {
+		return "", "", fmt.Errorf("Unable to perform token refresh, AAD token may have expired. Please logout and log back in again")
 	}
 
 	return getCredsFromAAD(serverAddress, challenge, tenantID, refreshToken)
@@ -133,31 +123,31 @@ func receiveChallengeFromLoginServer(serverAddress string) (*authDirective, erro
 	}, nil
 }
 
-func getAADTokensWithDeviceLogin() (tenantID string, refreshToken string, err error) {
-	var adalToken *adal.Token
-	if adalToken, err = adalDeviceLogin(); err != nil {
-		return "", "", err
-	}
+// func getAADTokensWithDeviceLogin() (tenantID string, refreshToken string, err error) {
+// 	var adalToken *adal.Token
+// 	if adalToken, err = adalDeviceLogin(); err != nil {
+// 		return "", "", err
+// 	}
 
-	accessTokenEncoded := adalToken.AccessToken
-	accessTokenSplit := strings.Split(accessTokenEncoded, ".")
-	if len(accessTokenSplit) < 2 {
-		return "", "", fmt.Errorf("invalid encoded id token: %s", accessTokenEncoded)
-	}
+// 	accessTokenEncoded := adalToken.AccessToken
+// 	accessTokenSplit := strings.Split(accessTokenEncoded, ".")
+// 	if len(accessTokenSplit) < 2 {
+// 		return "", "", fmt.Errorf("invalid encoded id token: %s", accessTokenEncoded)
+// 	}
 
-	idPayloadEncoded := accessTokenSplit[1]
-	var idJSON []byte
-	if idJSON, err = jwt.DecodeSegment(idPayloadEncoded); err != nil {
-		return "", "", fmt.Errorf("Error decoding accessToken: %s", err)
-	}
+// 	idPayloadEncoded := accessTokenSplit[1]
+// 	var idJSON []byte
+// 	if idJSON, err = jwt.DecodeSegment(idPayloadEncoded); err != nil {
+// 		return "", "", fmt.Errorf("Error decoding accessToken: %s", err)
+// 	}
 
-	var accessToken accessTokenPayload
-	if err := json.Unmarshal(idJSON, &accessToken); err != nil {
-		return "", "", fmt.Errorf("Error unmarshalling id token: %s", err)
-	}
+// 	var accessToken accessTokenPayload
+// 	if err := json.Unmarshal(idJSON, &accessToken); err != nil {
+// 		return "", "", fmt.Errorf("Error unmarshalling id token: %s", err)
+// 	}
 
-	return accessToken.TenantID, adalToken.RefreshToken, nil
-}
+// 	return accessToken.TenantID, adalToken.RefreshToken, nil
+// }
 
 func adalDeviceLogin() (*adal.Token, error) {
 	oauthClient := &http.Client{}
